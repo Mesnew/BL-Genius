@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import uvicorn; print('uvicorn OK')
+    ^^^^^^^^^^^^^^
+  File "<string>", line 1, in <module>
+    import uvicorn; print('uvicorn OK')
+    ^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'uvicorn'
+ModuleNotFoundError: No module named 'uvicorn'
