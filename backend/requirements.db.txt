@@ -1,0 +1,11 @@
+# Database dependencies
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.25
+alembic==1.13.1
+
+# Celery dependencies
+celery==5.3.6
+redis==5.0.1
+
+# Async support
+asyncpg==0.29.0

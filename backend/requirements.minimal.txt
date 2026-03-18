@@ -1,4 +1,4 @@
-# BL Genius - Backend Dependencies
+# BL Genius - Backend Dependencies MINIMAL (Build rapide)
 
 # FastAPI and server
 fastapi==0.109.0
@@ -8,12 +8,21 @@ python-multipart==0.0.6
 # CORS
 fastapi-cors==0.0.6
 
+# Database (binary = pas besoin de gcc)
+psycopg2-binary==2.9.9
+
+# Redis
+redis==5.0.1
+
+# Celery
+celery==5.3.6
+
 # YOLO and tracking
 ultralytics==8.1.0
 supervision==0.19.0
 
-# Computer vision
-opencv-python==4.8.1.78
+# Computer vision - HEADLESS (pas besoin de libGL)
+opencv-python-headless==4.8.0.74
 numpy==1.26.3
 
 # Machine Learning (K-Means)
@@ -28,10 +37,6 @@ roboflow==1.1.23
 # Utilities
 pillow==10.2.0
 tqdm==4.66.1
-
-# ============================================
-# SECURITY DEPENDENCIES
-# ============================================
 
 # Authentification JWT
 python-jose[cryptography]==3.3.0
@@ -51,3 +56,9 @@ bcrypt==4.1.2
 
 # Pour les tokens sécurisés
 cryptography==41.0.7
+
+# YouTube download
+yt-dlp==2023.12.30
+
+# WebSocket
+websockets==12.0

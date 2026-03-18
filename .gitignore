@@ -57,9 +57,21 @@ backend/stubs/*
 backend/models/*.pt
 !backend/models/.gitkeep
 
+# Database
+backend/data/*.db
+backend/data/videos/**/*
+!backend/data/videos/.gitkeep
+!backend/data/videos/uploads/.gitkeep
+!backend/data/videos/processed/.gitkeep
+!backend/data/videos/stubs/.gitkeep
+
+# Environment files
+.env.local
+
 # Logs
 *.log
 
 # Temporary files
 *.tmp
 *.temp
+models/*.mp4

@@ -1,0 +1,26 @@
+# ============================================
+# SECURITY DEPENDENCIES - BL Genius
+# À ajouter aux requirements existants
+# ============================================
+
+# Authentification JWT
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Validation des fichiers (MIME type)
+python-magic==0.4.27
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Validation Email
+pydantic[email]==2.5.0
+
+# Sécurité HTTP
+python-multipart==0.0.6  # Déjà présent, mais utilisé pour uploads
+
+# Hashing sécurisé
+bcrypt==4.1.2
+
+# Pour les tokens sécurisés
+cryptography==41.0.7

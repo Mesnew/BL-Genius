@@ -1,0 +1,50 @@
+# ============================================
+# BL GENIUS - BACKEND DEV (Hot Reload)
+# ============================================
+# Ce Dockerfile est optimisé pour le développement.
+# Le code source est monté via volume, pas copié.
+# Seules les dépendances sont installées dans l'image.
+# ============================================
+
+FROM python:3.11-slim
+
+# Éviter les buffers Python pour les logs
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONFAULTHANDLER=1
+
+# Répertoire de travail
+WORKDIR /app
+
+# Installation des dépendances système (une seule fois, caché)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglvnd0 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libpq-dev \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copie ET installation des requirements (cette couche est cachée si requirements.txt ne change pas)
+COPY requirements.txt requirements.db.txt* ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    (test -f requirements.db.txt && pip install --no-cache-dir -r requirements.db.txt || true)
+
+# Création des répertoires
+RUN mkdir -p /app/data/videos/uploads /app/data/videos/processed /app/models
+
+# Téléchargement du modèle YOLO (une seule fois)
+RUN python -c "from ultralytics import YOLO; YOLO('yolov8m.pt')" || \
+    curl -L -o /app/models/yolov8m.pt "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8m.pt"
+
+# Exposition du port
+EXPOSE 8000
+
+# Commande par défaut (peut être surchargée dans docker-compose)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
