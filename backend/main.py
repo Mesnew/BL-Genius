@@ -363,6 +363,23 @@ async def download_youtube(
             'quiet': True,
             'no_warnings': True,
             'max_filesize': MAX_FILE_SIZE,
+            # Options pour contourner les erreurs 403
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'referer': 'https://www.youtube.com/',
+            'headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate',
+            },
+            'geo_bypass': True,
+            'geo_bypass_country': 'US',
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web', 'android'],
+                    'player_skip': ['webpage', 'config', 'js'],
+                }
+            },
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
