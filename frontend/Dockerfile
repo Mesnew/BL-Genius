@@ -7,8 +7,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copie des fichiers de dépendances
-COPY package.json package-lock.json* ./
+# Copie des fichiers de dépendances et config
+COPY package.json package-lock.json* next.config.ts ./
 
 # Installation des dépendances
 RUN npm ci
@@ -16,8 +16,8 @@ RUN npm ci
 # Copie du code source
 COPY . .
 
-# Build de l'application
-RUN npm run build
+# Build de l'application (force clean build)
+RUN rm -rf .next && npm run build
 
 # Étape 2: Production
 FROM node:20-alpine AS runner
