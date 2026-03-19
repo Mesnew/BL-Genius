@@ -73,7 +73,22 @@ curl http://localhost:8000/health
 # {"status":"healthy","database":"connected",...}
 ```
 
-## 6. Firewall
+## 6. Acceder a l'application
+
+Apres le demarrage des conteneurs, accedez au frontend :
+
+```
+http://<IP_SERVEUR>:3000
+```
+
+**Important** : Le frontend est servi en mode production (Next.js standalone). Les modifications du code source ne sont PAS prises en compte automatiquement. Pour modifier le frontend, il faut rebuild :
+
+```bash
+docker compose build --no-cache frontend
+docker compose up -d frontend
+```
+
+## 7. Firewall
 
 ```bash
 sudo ufw allow 3000/tcp   # Frontend
@@ -81,15 +96,17 @@ sudo ufw allow 8000/tcp   # API (optionnel, si acces direct)
 sudo ufw enable
 ```
 
-## 7. Commandes utiles
+## 8. Commandes utiles
 
 ```bash
 # Voir les logs
 docker compose logs -f backend
 docker compose logs -f celery
+docker compose logs -f frontend  # Logs du frontend
 
 # Redemarrer un service
 docker compose restart backend
+docker compose restart frontend
 
 # Tout arreter
 docker compose down
@@ -104,10 +121,66 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
+## 9. Troubleshooting
+
+### Le frontend n'est pas accessible (port 3000)
+
+1. **Verifier que le conteneur tourne** :
+   ```bash
+   docker compose ps
+   # Doit afficher "frontend" avec status "Up"
+   ```
+
+2. **Verifier les logs** :
+   ```bash
+   docker compose logs frontend
+   ```
+
+3. **Verifier le firewall** :
+   ```bash
+   sudo ufw status
+   # Doit afficher "3000/tcp ALLOW"
+   ```
+
+4. **Verifier que NEXT_PUBLIC_API_URL est bien defini** dans le `.env` :
+   ```env
+   NEXT_PUBLIC_API_URL=http://<IP_SERVEUR>:8000
+   ```
+   Puis rebuild :
+   ```bash
+   docker compose build --no-cache frontend
+   docker compose up -d frontend
+   ```
+
+5. **Si le frontend affiche une erreur 500** :
+   C'est souvent car l'API n'est pas accessible. Verifiez :
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+### Erreur "Cannot connect to backend"
+
+Si le frontend affiche une erreur de connexion au backend :
+
+1. Verifiez que le backend tourne :
+   ```bash
+   docker compose ps backend
+   ```
+
+2. Verifiez que ALLOWED_ORIGINS contient bien l'URL du frontend dans `.env` :
+   ```env
+   ALLOWED_ORIGINS=http://<IP_SERVEUR>:3000
+   ```
+
+3. Redemarrez le backend :
+   ```bash
+   docker compose restart backend
+   ```
+
 ## Architecture
 
 ```
-Navigateur :3000 --> Frontend (Next.js)
+Navigateur :3000 --> Frontend (Next.js standalone)
                          |
                          v
                     Backend :8000 (FastAPI)
@@ -118,6 +191,11 @@ Navigateur :3000 --> Frontend (Next.js)
                            Celery Worker
                           (YOLO inference)
 ```
+
+**Note importante** : Le frontend est build en mode **production standalone** (Docker multi-stage). Cela signifie :
+- Le code source n'est PAS monte en volume
+- Les modifications necessitent un rebuild
+- Le serveur lit uniquement les fichiers dans `.next/standalone/`
 
 ## Ports
 
