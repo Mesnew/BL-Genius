@@ -1,30 +1,34 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 
 export default function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(false);
-  const [displayChildren, setDisplayChildren] = useState(children);
+  const prevPathname = useRef(pathname);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
-    // Quand le pathname change, on déclenche la transition
-    setIsVisible(false);
+    // Animation initiale au montage
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      const timer = setTimeout(() => setIsVisible(true), 50);
+      return () => clearTimeout(timer);
+    }
 
-    const timer = setTimeout(() => {
-      setDisplayChildren(children);
-      setIsVisible(true);
-    }, 150);
+    // Animation seulement quand le pathname change (pas quand children change)
+    if (pathname !== prevPathname.current) {
+      setIsVisible(false);
+      prevPathname.current = pathname;
 
-    return () => clearTimeout(timer);
-  }, [pathname, children]);
+      const timer = setTimeout(() => {
+        setIsVisible(true);
+      }, 150);
 
-  useEffect(() => {
-    // Animation initiale
-    const timer = setTimeout(() => setIsVisible(true), 50);
-    return () => clearTimeout(timer);
-  }, []);
+      return () => clearTimeout(timer);
+    }
+  }, [pathname]);
 
   return (
     <div
@@ -33,7 +37,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
         ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
       `}
     >
-      {displayChildren}
+      {children}
     </div>
   );
 }
