@@ -323,8 +323,7 @@ export default function PreviewPage() {
 
             {/* Message si aucune vidéo */}
             {videos.length === 0 && (
-              <div className="text-center py-12"
-003e
+              <div className="text-center py-12">
                 <div className="text-6xl mb-4 opacity-50">📂</div>
                 <p className="text-gray-400 text-lg">Aucune vidéo chargée</p>
                 <p className="text-gray-500 text-sm mt-2">Uploadez une vidéo pour commencer</p>
