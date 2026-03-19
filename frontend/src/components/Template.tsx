@@ -1,12 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { Suspense } from 'react';
-import dynamic from 'next/dynamic';
-
-const BackgroundScene = dynamic(() => import('./BackgroundScene'), {
-  ssr: false,
-});
+import SimpleBackground from './SimpleBackground';
 
 export default function Template({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,12 +11,8 @@ export default function Template({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {showBackground && (
-        <Suspense fallback={null}>
-          <BackgroundScene />
-        </Suspense>
-      )}
-      {children}
+      {showBackground && <SimpleBackground />}
+      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
     </>
   );
 }
