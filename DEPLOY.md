@@ -58,15 +58,17 @@ mkdir -p data/videos/uploads data/videos/processed models
 
 ## 5. Build et lancement
 
+**Utiliser le fichier docker-compose.prod.yml** (pas le docker-compose.yml qui est pour le dev) :
+
 ```bash
-docker compose build --no-cache
-docker compose up -d
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Verifier que tout tourne :
 
 ```bash
-docker compose ps
+docker compose -f docker-compose.prod.yml ps
 # 5 services doivent etre UP : postgres, redis, backend, celery, frontend
 
 curl http://localhost:8000/health
@@ -84,8 +86,8 @@ http://<IP_SERVEUR>:3000
 **Important** : Le frontend est servi en mode production (Next.js standalone). Les modifications du code source ne sont PAS prises en compte automatiquement. Pour modifier le frontend, il faut rebuild :
 
 ```bash
-docker compose build --no-cache frontend
-docker compose up -d frontend
+docker compose -f docker-compose.prod.yml build --no-cache frontend
+docker compose -f docker-compose.prod.yml up -d frontend
 ```
 
 ## 7. Firewall
@@ -100,25 +102,25 @@ sudo ufw enable
 
 ```bash
 # Voir les logs
-docker compose logs -f backend
-docker compose logs -f celery
-docker compose logs -f frontend  # Logs du frontend
+docker compose -f docker-compose.prod.yml logs -f backend
+docker compose -f docker-compose.prod.yml logs -f celery
+docker compose -f docker-compose.prod.yml logs -f frontend
 
 # Redemarrer un service
-docker compose restart backend
-docker compose restart frontend
+docker compose -f docker-compose.prod.yml restart backend
+docker compose -f docker-compose.prod.yml restart frontend
 
 # Tout arreter
-docker compose down
+docker compose -f docker-compose.prod.yml down
 
 # Tout arreter + supprimer les donnees
-docker compose down -v
+docker compose -f docker-compose.prod.yml down -v
 
 # Mettre a jour
 cd /opt/bl-genius
 git pull
-docker compose build --no-cache
-docker compose up -d
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ## 9. Troubleshooting
@@ -127,13 +129,13 @@ docker compose up -d
 
 1. **Verifier que le conteneur tourne** :
    ```bash
-   docker compose ps
+   docker compose -f docker-compose.prod.yml ps
    # Doit afficher "frontend" avec status "Up"
    ```
 
 2. **Verifier les logs** :
    ```bash
-   docker compose logs frontend
+   docker compose -f docker-compose.prod.yml logs frontend
    ```
 
 3. **Verifier le firewall** :
@@ -148,8 +150,8 @@ docker compose up -d
    ```
    Puis rebuild :
    ```bash
-   docker compose build --no-cache frontend
-   docker compose up -d frontend
+   docker compose -f docker-compose.prod.yml build --no-cache frontend
+   docker compose -f docker-compose.prod.yml up -d frontend
    ```
 
 5. **Si le frontend affiche une erreur 500** :
@@ -164,7 +166,7 @@ Si le frontend affiche une erreur de connexion au backend :
 
 1. Verifiez que le backend tourne :
    ```bash
-   docker compose ps backend
+   docker compose -f docker-compose.prod.yml ps backend
    ```
 
 2. Verifiez que ALLOWED_ORIGINS contient bien l'URL du frontend dans `.env` :
@@ -174,7 +176,7 @@ Si le frontend affiche une erreur de connexion au backend :
 
 3. Redemarrez le backend :
    ```bash
-   docker compose restart backend
+   docker compose -f docker-compose.prod.yml restart backend
    ```
 
 ## Architecture
