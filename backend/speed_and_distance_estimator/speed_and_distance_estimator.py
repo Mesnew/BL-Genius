@@ -1,19 +1,55 @@
 import cv2
-import sys 
+import sys
+import numpy as np
 sys.path.append('../')
 from utils import measure_distance ,get_foot_position
+from collections import deque
 
 class SpeedAndDistance_Estimator():
     def __init__(self):
         self.frame_window=5
         self.frame_rate=24
-    
+        self.max_speed_kmh = 40  # Maximum realistic speed (Usain Bolt ~44 km/h)
+        self.speed_history = {}  # Store recent speeds for smoothing
+        self.history_size = 10   # Number of frames to keep for median filter
+
+    def smooth_speed(self, track_id, raw_speed):
+        """Apply median filter to smooth out speed spikes"""
+        if track_id not in self.speed_history:
+            self.speed_history[track_id] = deque(maxlen=self.history_size)
+
+        history = self.speed_history[track_id]
+
+        # Si l'historique est vide, initialiser avec une valeur raisonnable
+        if len(history) == 0:
+            history.append(raw_speed)
+            return raw_speed
+
+        last_speed = history[-1]
+
+        # Limiter les changements brusques (max 3 km/h entre frames)
+        max_change = 3.0  # km/h par frame
+        if abs(raw_speed - last_speed) > max_change:
+            # Limiter le changement
+            if raw_speed > last_speed:
+                raw_speed = last_speed + max_change
+            else:
+                raw_speed = last_speed - max_change
+
+        # Ajouter à l'historique
+        history.append(raw_speed)
+
+        # Retourner la médiane des vitesses récentes (plus robuste que la moyenne)
+        if len(history) >= 3:
+            return float(np.median(list(history)))
+        return float(raw_speed)
+
     def add_speed_and_distance_to_tracks(self,tracks):
         total_distance= {}
 
         for object, object_tracks in tracks.items():
             if object == "ball" or object == "referees":
-                continue 
+                continue
             number_of_frames = len(object_tracks)
             for frame_num in range(0,number_of_frames, self.frame_window):
                 last_frame = min(frame_num+self.frame_window,number_of_frames-1 )
@@ -27,18 +63,24 @@ class SpeedAndDistance_Estimator():
 
                     if start_position is None or end_position is None:
                         continue
-                    
+
                     distance_covered = measure_distance(start_position,end_position)
                     time_elapsed = (last_frame-frame_num)/self.frame_rate
                     speed_meteres_per_second = distance_covered/time_elapsed
                     speed_km_per_hour = speed_meteres_per_second*3.6
 
+                    # Cap maximum speed
+                    speed_km_per_hour = min(speed_km_per_hour, self.max_speed_kmh)
+
+                    # Apply smoothing
+                    speed_km_per_hour = self.smooth_speed(track_id, speed_km_per_hour)
+
                     if object not in total_distance:
                         total_distance[object]= {}
-                    
+
                     if track_id not in total_distance[object]:
                         total_distance[object][track_id] = 0
-                    
+
                     total_distance[object][track_id] += distance_covered
 
                     for frame_num_batch in range(frame_num,last_frame):

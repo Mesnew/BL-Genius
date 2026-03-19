@@ -14,28 +14,98 @@ class Tracker:
         self.model = YOLO(model_path) 
         self.tracker = sv.ByteTrack()
 
-    def add_position_to_tracks(sekf,tracks):
+    def add_position_to_tracks(self,tracks):
         for object, object_tracks in tracks.items():
             for frame_num, track in enumerate(object_tracks):
                 for track_id, track_info in track.items():
-                    bbox = track_info['bbox']
-                    if object == 'ball':
-                        position= get_center_of_bbox(bbox)
-                    else:
-                        position = get_foot_position(bbox)
-                    tracks[object][frame_num][track_id]['position'] = position
+                    bbox = track_info.get('bbox', [])
+                    # Skip if bbox is empty or invalid
+                    if not bbox or len(bbox) != 4:
+                        continue
+                    # Skip if any coordinate is NaN
+                    if any(pd.isna(v) for v in bbox):
+                        continue
+                    try:
+                        if object == 'ball':
+                            position = get_center_of_bbox(bbox)
+                        else:
+                            position = get_foot_position(bbox)
+                        tracks[object][frame_num][track_id]['position'] = position
+                    except (ValueError, TypeError):
+                        # Skip if position calculation fails
+                        continue
 
-    def interpolate_ball_positions(self,ball_positions):
-        ball_positions = [x.get(1,{}).get('bbox',[]) for x in ball_positions]
-        df_ball_positions = pd.DataFrame(ball_positions,columns=['x1','y1','x2','y2'])
+    def interpolate_ball_positions(self, ball_positions):
+        """
+        Interpole les positions de la balle entre les détections.
+        Utilise une interpolation linéaire simple pour suivre la balle précisément.
+        """
+        # Extract bboxes and track which frames have valid detections
+        valid_frames = []
+        valid_bboxes = []
 
-        # Interpolate missing values
-        df_ball_positions = df_ball_positions.interpolate()
-        df_ball_positions = df_ball_positions.bfill()
+        for idx, x in enumerate(ball_positions):
+            bbox = x.get(1, {}).get('bbox', [])
+            if len(bbox) == 4 and all(v != 0 and not pd.isna(v) for v in bbox):
+                valid_frames.append(idx)
+                valid_bboxes.append(bbox)
 
-        ball_positions = [{1: {"bbox":x}} for x in df_ball_positions.to_numpy().tolist()]
+        # If no valid detections, return original
+        if len(valid_frames) == 0:
+            return ball_positions
 
-        return ball_positions
+        # If only one detection, use it for nearby frames
+        if len(valid_frames) == 1:
+            result = []
+            detection_frame = valid_frames[0]
+            bbox = valid_bboxes[0]
+            for i in range(len(ball_positions)):
+                # Only use detection for frames within 5 frames
+                if abs(i - detection_frame) <= 5:
+                    result.append({1: {"bbox": bbox}})
+                else:
+                    result.append({})
+            return result
+
+        # Build result with linear interpolation between detections
+        result = []
+        last_valid_idx = 0
+        last_valid_bbox = valid_bboxes[0]
+
+        for i in range(len(ball_positions)):
+            if i in valid_frames:
+                # Use actual detection
+                idx = valid_frames.index(i)
+                result.append({1: {"bbox": valid_bboxes[idx]}})
+                last_valid_idx = i
+                last_valid_bbox = valid_bboxes[idx]
+            else:
+                # Find next valid detection
+                next_valid_idx = None
+                next_valid_bbox = None
+                for vf, vb in zip(valid_frames, valid_bboxes):
+                    if vf > i:
+                        next_valid_idx = vf
+                        next_valid_bbox = vb
+                        break
+
+                if next_valid_idx is not None and (next_valid_idx - last_valid_idx) <= 10:
+                    # Interpolate between last and next valid
+                    alpha = (i - last_valid_idx) / (next_valid_idx - last_valid_idx)
+                    interp_bbox = [
+                        last_valid_bbox[0] + alpha * (next_valid_bbox[0] - last_valid_bbox[0]),
+                        last_valid_bbox[1] + alpha * (next_valid_bbox[1] - last_valid_bbox[1]),
+                        last_valid_bbox[2] + alpha * (next_valid_bbox[2] - last_valid_bbox[2]),
+                        last_valid_bbox[3] + alpha * (next_valid_bbox[3] - last_valid_bbox[3])
+                    ]
+                    result.append({1: {"bbox": interp_bbox}})
+                elif (i - last_valid_idx) <= 5:
+                    # Use last valid if within 5 frames
+                    result.append({1: {"bbox": last_valid_bbox}})
+                else:
+                    result.append({})
+
+        return result
 
     def detect_frames(self, frames):
         batch_size=20 
@@ -158,36 +228,74 @@ class Tracker:
 
         return frame
 
-    def draw_traingle(self,frame,bbox,color):
-        y= int(bbox[1])
-        x,_ = get_center_of_bbox(bbox)
+    def draw_traingle(self,frame,bbox,color, track_id=None):
+        # Utiliser le centre de la bbox pour un meilleur positionnement
+        x, y_center = get_center_of_bbox(bbox)
+        y = int(y_center)  # Centre vertical au lieu du haut
 
         triangle_points = np.array([
-            [x,y],
-            [x-10,y-20],
-            [x+10,y-20],
+            [x,y],           # Pointe du triangle au centre
+            [x-10,y-15],     # Base gauche
+            [x+10,y-15],     # Base droite
         ])
         cv2.drawContours(frame, [triangle_points],0,color, cv2.FILLED)
         cv2.drawContours(frame, [triangle_points],0,(0,0,0), 2)
 
         return frame
 
-    def draw_team_ball_control(self,frame,frame_num,team_ball_control):
-        # Rectangle retiré - affichage uniquement du texte
+    def draw_team_ball_control(self, frame, frame_num, team_ball_control):
+        # Affichage avec noms d'équipe basés sur les couleurs
         team_ball_control_till_frame = team_ball_control[:frame_num+1]
-        # Get the number of time each team had ball control
-        team_1_num_frames = team_ball_control_till_frame[team_ball_control_till_frame==1].shape[0]
-        team_2_num_frames = team_ball_control_till_frame[team_ball_control_till_frame==2].shape[0]
-        team_1 = team_1_num_frames/(team_1_num_frames+team_2_num_frames)
-        team_2 = team_2_num_frames/(team_1_num_frames+team_2_num_frames)
 
-        cv2.putText(frame, f"Team 1 Ball Control: {team_1*100:.2f}%",(1400,900), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 3)
-        cv2.putText(frame, f"Team 2 Ball Control: {team_2*100:.2f}%",(1400,950), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 3)
+        if len(team_ball_control_till_frame) == 0:
+            return frame
+
+        # Get the number of time each team had ball control
+        team_1_num_frames = (team_ball_control_till_frame == 1).sum()
+        team_2_num_frames = (team_ball_control_till_frame == 2).sum()
+        total = team_1_num_frames + team_2_num_frames
+
+        if total == 0:
+            return frame
+
+        team_1_pct = team_1_num_frames / total * 100
+        team_2_pct = team_2_num_frames / total * 100
+
+        # Fond semi-transparent pour la lisibilité
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (1350, 850), (1920, 980), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+        # Team Rouge (Team A)
+        cv2.putText(frame, f"Team Rouge (A): {team_1_pct:.1f}%", (1380, 900),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+
+        # Team Bleue (Team B)
+        cv2.putText(frame, f"Team Bleue (B): {team_2_pct:.1f}%", (1380, 950),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
         return frame
 
-    def draw_annotations(self,video_frames, tracks,team_ball_control):
+    def draw_annotations(self,video_frames, tracks,team_ball_control, player_speeds=None):
         output_video_frames= []
+
+        # Couleurs fixes pour les équipes (Team A = Rouge, Team B = Bleu)
+        TEAM_COLORS = {
+            1: (0, 0, 255),    # Rouge en BGR
+            2: (255, 0, 0),    # Bleu en BGR
+        }
+
+        # Mapper les track_id à des numéros de maillot 1-26
+        player_number_map = {}
+        all_player_ids = set()
+        for frame_tracks in tracks["players"]:
+            all_player_ids.update(frame_tracks.keys())
+
+        # Trier les IDs et assigner des numéros 1-26
+        sorted_ids = sorted(all_player_ids)
+        for idx, player_id in enumerate(sorted_ids):
+            player_number_map[player_id] = (idx % 26) + 1  # Numéros 1-26 cycliques
+
         for frame_num, frame in enumerate(video_frames):
             frame = frame.copy()
 
@@ -195,26 +303,53 @@ class Tracker:
             ball_dict = tracks["ball"][frame_num]
             referee_dict = tracks["referees"][frame_num]
 
-            # Draw Players
+            # Draw Players avec couleurs d'équipe fixes et numéros 1-26
             for track_id, player in player_dict.items():
-                color = player.get("team_color",(0,0,255))
-                frame = self.draw_ellipse(frame, player["bbox"],color, track_id)
+                team = player.get("team", 1)
+                # Utiliser la couleur assignée dans main.py, sinon fallback sur TEAM_COLORS
+                color = player.get("team_color", TEAM_COLORS.get(team, (0, 255, 0)))
+                jersey_number = player_number_map.get(track_id, track_id)
+                frame = self.draw_ellipse(frame, player["bbox"], color, jersey_number)
 
                 if player.get('has_ball',False):
-                    frame = self.draw_traingle(frame, player["bbox"],(0,0,255))
+                    frame = self.draw_traingle(frame, player["bbox"], (0, 0, 255))
 
-            # Draw Referee
+            # Draw Referee (jaune)
             for _, referee in referee_dict.items():
-                frame = self.draw_ellipse(frame, referee["bbox"],(0,255,255))
-            
-            # Draw ball 
+                frame = self.draw_ellipse(frame, referee["bbox"], (0, 255, 255))
+
+            # Draw ball - cercle au lieu de triangle pour plus de visibilité
             for track_id, ball in ball_dict.items():
-                frame = self.draw_traingle(frame, ball["bbox"],(0,255,0))
+                bbox = ball.get("bbox", [])
+                if len(bbox) == 4 and all(bbox):
+                    # Dessiner un cercle au centre de la balle
+                    x, y = get_center_of_bbox(bbox)
+                    cv2.circle(frame, (int(x), int(y)), 8, (0, 255, 0), -1)  # Cercle plein vert
+                    cv2.circle(frame, (int(x), int(y)), 10, (0, 0, 0), 2)    # Bordure noire
 
-
-            # Draw Team Ball Control
+            # Draw Team Ball Control avec noms d'équipe basés sur les couleurs
             frame = self.draw_team_ball_control(frame, frame_num, team_ball_control)
+
+            # Draw speed ranking si disponible
+            if player_speeds and frame_num == 0:  # Afficher sur la première frame
+                frame = self.draw_speed_ranking(frame, player_speeds)
 
             output_video_frames.append(frame)
 
         return output_video_frames
+
+    def draw_speed_ranking(self, frame, player_speeds):
+        """Affiche le classement des joueurs par vitesse"""
+        # Trier par vitesse décroissante
+        sorted_speeds = sorted(player_speeds.items(), key=lambda x: x[1], reverse=True)
+
+        # Afficher top 5
+        y_start = 100
+        cv2.putText(frame, "TOP SPEEDS:", (50, y_start), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+        for i, (player_id, speed) in enumerate(sorted_speeds[:5]):
+            y_pos = y_start + 30 + (i * 25)
+            text = f"#{player_id}: {speed:.1f} km/h"
+            cv2.putText(frame, text, (50, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+        return frame

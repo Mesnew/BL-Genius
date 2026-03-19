@@ -47,6 +47,9 @@ from app.auth import (
     verify_password, create_access_token, Token,
     get_current_user_from_token_or_header
 )
+
+# Imports modules d'analyse
+from pass_detector import PassDetector
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -90,7 +93,7 @@ app.add_middleware(
 )
 
 # Configuration des répertoires
-VIDEO_OUTPUT_DIR = Path(os.getenv('VIDEO_OUTPUT_DIR', '/app/data/videos'))
+VIDEO_OUTPUT_DIR = Path(os.getenv('VIDEO_OUTPUT_DIR', './data/videos'))
 VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 (VIDEO_OUTPUT_DIR / 'uploads').mkdir(exist_ok=True)
 (VIDEO_OUTPUT_DIR / 'processed').mkdir(exist_ok=True)
@@ -401,6 +404,11 @@ async def download_youtube(
         raise HTTPException(400, f"Download failed: {str(e)}")
 
 
+def _interpolate_tracks(tracks, total_frames, interval):
+    """Fonction non utilisée - gardée pour compatibilité"""
+    return tracks
+
+
 @app.post("/analyze/{task_id}", response_model=StatusResponse)
 @limiter.limit("100/hour" if os.getenv("DEBUG") == "true" else "10/hour")
 async def analyze_video(
@@ -483,14 +491,13 @@ async def run_analysis_sync(task_id: str, user_id: int):
 
         logger.info(f"🎬 Starting optimized analysis for {task_id}")
 
-        # Lecture vidéo optimisée (1 frame sur 4 pour accélérer)
+        # Lecture vidéo - TOUTES les frames pour qualité maximale
         logger.info(f"📖 Reading video: {input_path}")
         cap = cv2.VideoCapture(input_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        # Lire TOUTES les frames pour une vidéo parfaitement fluide (pas de saut)
-        frame_interval = 1
+        # Lire TOUTES les frames pour qualité maximale
         video_frames = []
         frame_count = 0
 
@@ -498,17 +505,14 @@ async def run_analysis_sync(task_id: str, user_id: int):
             ret, frame = cap.read()
             if not ret:
                 break
-            if frame_count % frame_interval == 0:
-                video_frames.append(frame)
+            video_frames.append(frame)
             frame_count += 1
         cap.release()
 
-        logger.info(f"✅ Read {len(video_frames)} frames (sampled 1/{frame_interval})")
+        logger.info(f"✅ Read {len(video_frames)} frames")
 
-        # Calculer le FPS ajusté pour la vidéo de sortie
-        # Pour garder la durée originale, on divise le FPS par l'intervalle
-        output_fps = fps / frame_interval
-        logger.info(f"🎥 Output FPS: {output_fps} (original: {fps}, interval: {frame_interval})")
+        # Garder le FPS original pour la sortie
+        output_fps = fps
 
         # Créer le dossier stubs s'il n'existe pas
         (VIDEO_OUTPUT_DIR / 'stubs').mkdir(parents=True, exist_ok=True)
@@ -525,6 +529,11 @@ async def run_analysis_sync(task_id: str, user_id: int):
         )
         logger.info("✅ Tracking complete")
 
+        # Interpolation ballon
+        logger.info("🎯 Ball interpolation...")
+        tracks["ball"] = tracker.interpolate_ball_positions(tracks["ball"])
+
+        # PUIS ajouter les positions à tous les tracks
         tracker.add_position_to_tracks(tracks)
 
         # Estimation mouvement caméra
@@ -541,10 +550,6 @@ async def run_analysis_sync(task_id: str, user_id: int):
         logger.info("🗺️ Perspective transformation...")
         view_transformer = ViewTransformer()
         view_transformer.add_transformed_position_to_tracks(tracks)
-
-        # Interpolation ballon
-        logger.info("🎯 Ball interpolation...")
-        tracks["ball"] = tracker.interpolate_ball_positions(tracks["ball"])
 
         # Calcul vitesse/distance
         logger.info("⚡ Speed and distance calculation...")
@@ -564,7 +569,7 @@ async def run_analysis_sync(task_id: str, user_id: int):
                     player_id
                 )
                 tracks['players'][frame_num][player_id]['team'] = team
-                tracks['players'][frame_num][player_id]['team_color'] = team_assigner.team_colors[team]
+                tracks['players'][frame_num][player_id]['team_color'] = team_assigner.get_team_display_color(team)
 
         # Contrôle ballon
         logger.info("⚽ Ball control assignment...")
@@ -572,13 +577,53 @@ async def run_analysis_sync(task_id: str, user_id: int):
         team_ball_control = []
 
         for frame_num, player_track in enumerate(tracks['players']):
-            ball_bbox = tracks['ball'][frame_num][1]['bbox']
-            assigned_player = player_assigner.assign_ball_to_player(player_track, ball_bbox)
+            try:
+                # Vérifier si la balle est détectée dans cette frame
+                ball_dict = tracks['ball'][frame_num] if frame_num < len(tracks['ball']) else None
+                if ball_dict is None:
+                    if team_ball_control:
+                        team_ball_control.append(team_ball_control[-1])
+                    else:
+                        team_ball_control.append(1)
+                    continue
 
-            if assigned_player != -1:
-                tracks['players'][frame_num][assigned_player]['has_ball'] = True
-                team_ball_control.append(tracks['players'][frame_num][assigned_player]['team'])
-            else:
+                # Vérifier si la balle avec track_id 1 existe
+                ball_info = ball_dict.get(1) if isinstance(ball_dict, dict) else None
+                if ball_info is None:
+                    if team_ball_control:
+                        team_ball_control.append(team_ball_control[-1])
+                    else:
+                        team_ball_control.append(1)
+                    continue
+
+                ball_bbox = ball_info.get('bbox', [])
+                if not ball_bbox or len(ball_bbox) != 4:
+                    if team_ball_control:
+                        team_ball_control.append(team_ball_control[-1])
+                    else:
+                        team_ball_control.append(1)
+                    continue
+
+                # Utiliser la position transformée du ballon si disponible
+                ball_position_transformed = ball_info.get('position_transformed')
+
+                # Assigner le ballon au joueur le plus proche
+                assigned_player = player_assigner.assign_ball_to_player(
+                    player_track,
+                    ball_bbox,
+                    ball_position_transformed=ball_position_transformed
+                )
+
+                if assigned_player != -1:
+                    tracks['players'][frame_num][assigned_player]['has_ball'] = True
+                    team_ball_control.append(tracks['players'][frame_num][assigned_player]['team'])
+                else:
+                    if team_ball_control:
+                        team_ball_control.append(team_ball_control[-1])
+                    else:
+                        team_ball_control.append(1)
+            except Exception as e:
+                logger.error(f"❌ Error in ball control frame {frame_num}: {e}")
                 if team_ball_control:
                     team_ball_control.append(team_ball_control[-1])
                 else:
@@ -586,31 +631,56 @@ async def run_analysis_sync(task_id: str, user_id: int):
 
         team_ball_control = np.array(team_ball_control)
 
-        # Génération vidéo annotée
+        # Calculer les statistiques des joueurs
+        logger.info("📊 Calculating player statistics...")
+        unique_players = set()
+        player_max_speeds = {}
+        player_teams = {}
+
+        for frame_num, player_track in enumerate(tracks['players']):
+            for player_id, player_info in player_track.items():
+                unique_players.add(player_id)
+
+                # Track team
+                team = player_info.get('team', 1)
+                player_teams[player_id] = team
+
+                # Track max speed
+                speed = player_info.get('speed', 0)
+                if player_id not in player_max_speeds or speed > player_max_speeds[player_id]:
+                    player_max_speeds[player_id] = speed
+
+        logger.info(f"👥 Total unique players detected: {len(unique_players)}")
+        logger.info(f"🏃 Players by team: Team 1={sum(1 for t in player_teams.values() if t==1)}, Team 2={sum(1 for t in player_teams.values() if t==2)}")
+
+        # Détection des passes
+        logger.info("🔄 Detecting passes...")
+        pass_detector = PassDetector()
+        passes = pass_detector.detect_passes(tracks, team_ball_control)
+        pass_stats = pass_detector.get_pass_statistics(passes)
+        logger.info(f"✅ Detected {len(passes)} passes ({pass_stats['successful_passes']} successful)")
+
+        # Génération vidéo annotée avec passes et classement des vitesses
         logger.info("🎨 Generating annotated video...")
-        output_video_frames = tracker.draw_annotations(video_frames, tracks, team_ball_control)
+        output_video_frames = tracker.draw_annotations(video_frames, tracks, team_ball_control, player_max_speeds)
         output_video_frames = camera_estimator.draw_camera_movement(output_video_frames, camera_movements)
         output_video_frames = speed_estimator.draw_speed_and_distance(output_video_frames, tracks)
 
-        # Dupliquer les frames pour revenir au nombre de frames original (vidéo fluide)
-        logger.info(f"📹 Interpolating frames: {len(output_video_frames)} -> {len(output_video_frames) * frame_interval} frames")
-        interpolated_frames = []
-        for frame in output_video_frames:
-            # Dupliquer chaque frame 'frame_interval' fois
-            for _ in range(frame_interval):
-                interpolated_frames.append(frame)
-        output_video_frames = interpolated_frames
-        logger.info(f"✅ Interpolated to {len(output_video_frames)} frames")
+        # Dessiner les passes sur chaque frame
+        for frame_num in range(len(output_video_frames)):
+            output_video_frames[frame_num] = pass_detector.draw_passes_on_frame(
+                output_video_frames[frame_num], passes, frame_num, tracks
+            )
 
-        # Sauvegarde avec FPS original pour une vidéo fluide
+        # Sauvegarde avec FPS ajusté
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Utiliser VideoWriter avec le FPS original
+        # Utiliser VideoWriter avec le FPS ajusté (pour garder la durée originale)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(
             str(output_path),
             fourcc,
-            fps,  # FPS original pour une vidéo fluide
+            output_fps,  # FPS ajusté pour la durée originale
             (output_video_frames[0].shape[1], output_video_frames[0].shape[0])
         )
         for frame in output_video_frames:
@@ -619,16 +689,89 @@ async def run_analysis_sync(task_id: str, user_id: int):
 
         logger.info(f"✅ Video saved: {output_path} at {output_fps} FPS")
 
-        # Mise à jour BDD
+        # Mise à jour BDD avec statistiques complètes
         video.status = 'completed'
         video.output_path = str(output_path)
-        video.analysis_result = {
-            'total_frames': len(video_frames),
-            'total_players': sum(len(f) for f in tracks['players']),
-            'possession_team1': float((team_ball_control == 1).sum() / len(team_ball_control) * 100),
-            'possession_team2': float((team_ball_control == 2).sum() / len(team_ball_control) * 100),
+
+        # Formater les passes pour le stockage JSON
+        passes_data = []
+        for p in passes:
+            passes_data.append({
+                'frame_start': p.frame_start,
+                'frame_end': p.frame_end,
+                'player_from': p.player_from,
+                'player_to': p.player_to,
+                'team': p.team,
+                'distance_meters': round(p.distance_meters, 2),
+                'speed_kmh': round(p.speed_kmh, 2),
+                'successful': p.successful
+            })
+
+        # Calculer le top 5 des vitesses
+        top_speeds = sorted(player_max_speeds.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_speeds_data_raw = [{'player_id': pid, 'speed_kmh': round(speed, 2)} for pid, speed in top_speeds]
+
+        # Convertir les statistiques en types Python natifs pour JSON
+        def convert_to_native(obj):
+            """Convertit récursivement les types numpy en types Python natifs"""
+            if hasattr(obj, 'item'):  # numpy scalar
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {int(k) if hasattr(k, 'item') else k: convert_to_native(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_to_native(item) for item in obj]
+            elif isinstance(obj, tuple):
+                return tuple(convert_to_native(item) for item in obj)
+            return obj
+
+        # Convertir toutes les statistiques en types natifs
+        passes_by_team_clean = convert_to_native(pass_stats['passes_by_team'])
+
+        # Convertir top_speeds_data en types natifs
+        top_speeds_data = convert_to_native(top_speeds_data_raw)
+
+        # Convertir team_ball_control (numpy array) en list Python
+        team_ball_control_list = [int(x) for x in team_ball_control]
+        possession_team1 = float(sum(1 for x in team_ball_control_list if x == 1) / len(team_ball_control_list) * 100) if team_ball_control_list else 0.0
+        possession_team2 = float(sum(1 for x in team_ball_control_list if x == 2) / len(team_ball_control_list) * 100) if team_ball_control_list else 0.0
+
+        analysis_result = {
+            'total_frames': int(len(video_frames)),
+            'total_players_unique': int(len(unique_players)),
+            'players_team_1': int(sum(1 for t in player_teams.values() if t == 1)),
+            'players_team_2': int(sum(1 for t in player_teams.values() if t == 2)),
+            'possession_team1': possession_team1,
+            'possession_team2': possession_team2,
+            'top_speeds': top_speeds_data,
+            'passes': {
+                'total': int(convert_to_native(pass_stats['total_passes'])),
+                'successful': int(convert_to_native(pass_stats['successful_passes'])),
+                'failed': int(convert_to_native(pass_stats['failed_passes'])),
+                'success_rate': float(round(convert_to_native(pass_stats['success_rate']), 1)),
+                'avg_distance_m': float(round(convert_to_native(pass_stats['avg_distance']), 1)),
+                'avg_speed_kmh': float(round(convert_to_native(pass_stats['avg_speed']), 1)),
+                'by_team': passes_by_team_clean,
+                'events': passes_data[:50]  # Limiter à 50 passes pour la taille JSON
+            },
             'processing_time': 'completed'
         }
+
+        # Vérifier que tout est sérialisable en JSON
+        import json
+        try:
+            json.dumps(analysis_result)
+            logger.info("✅ Analysis result is JSON serializable")
+        except Exception as json_err:
+            logger.error(f"❌ JSON serialization error: {json_err}")
+            # Essayer de trouver la valeur problématique
+            for key, value in analysis_result.items():
+                try:
+                    json.dumps({key: value})
+                except:
+                    logger.error(f"   Problematic key: {key}, type: {type(value)}, value: {value}")
+            raise
+
+        video.analysis_result = analysis_result
         db.commit()
 
         logger.info(f"✅ Analysis complete for {task_id}")

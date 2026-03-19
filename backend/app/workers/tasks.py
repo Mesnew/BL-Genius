@@ -99,11 +99,18 @@ def process_video(self, video_id: str):
             meta={'current': 3, 'total': 10, 'status': 'Tracking terminé'}
         )
 
-        # Ajout des positions
+        # =====================================================
+        # ÉTAPE 3: Interpolation du ballon (AVANT d'ajouter les positions)
+        # =====================================================
+        logger.info("🎯 Interpolation du ballon...")
+        tracks["ball"] = tracker.interpolate_ball_positions(tracks["ball"])
+        logger.info("✅ Interpolation du ballon terminée")
+
+        # PUIS ajouter les positions à tous les tracks
         tracker.add_position_to_tracks(tracks)
 
         # =====================================================
-        # ÉTAPE 3: Estimation mouvement caméra
+        # ÉTAPE 4: Estimation mouvement caméra
         # =====================================================
         logger.info("📹 Estimation du mouvement de caméra...")
         camera_estimator = CameraMovementEstimator(video_frames[0])
@@ -121,7 +128,7 @@ def process_video(self, video_id: str):
         )
 
         # =====================================================
-        # ÉTAPE 4: Transformation de perspective
+        # ÉTAPE 5: Transformation de perspective
         # =====================================================
         logger.info("🗺️ Transformation de perspective...")
         view_transformer = ViewTransformer()
@@ -132,13 +139,6 @@ def process_video(self, video_id: str):
             state='PROGRESS',
             meta={'current': 6, 'total': 10, 'status': 'Perspective transformée'}
         )
-
-        # =====================================================
-        # ÉTAPE 5: Interpolation du ballon
-        # =====================================================
-        logger.info("🎯 Interpolation du ballon...")
-        tracks["ball"] = tracker.interpolate_ball_positions(tracks["ball"])
-        logger.info("✅ Interpolation du ballon terminée")
 
         # =====================================================
         # ÉTAPE 6: Calcul vitesse et distance
@@ -186,7 +186,19 @@ def process_video(self, video_id: str):
 
         for frame_num, player_track in enumerate(tracks['players']):
             ball_bbox = tracks['ball'][frame_num][1]['bbox']
-            assigned_player = player_assigner.assign_ball_to_player(player_track, ball_bbox)
+
+            # Utiliser la position transformée du ballon si disponible (plus précis)
+            ball_position_transformed = None
+            if 'position_transformed' in tracks['ball'][frame_num][1]:
+                ball_position_transformed = tracks['ball'][frame_num][1]['position_transformed']
+                logger.debug(f"Frame {frame_num}: Ball position transformed: {ball_position_transformed}")
+
+            # Assigner le ballon au joueur le plus proche (avec coordonnées terrain si dispo)
+            assigned_player = player_assigner.assign_ball_to_player(
+                player_track,
+                ball_bbox,
+                ball_position_transformed=ball_position_transformed
+            )
 
             if assigned_player != -1:
                 tracks['players'][frame_num][assigned_player]['has_ball'] = True

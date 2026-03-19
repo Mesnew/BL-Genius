@@ -2,7 +2,7 @@
 # DATABASE CONFIGURATION - BL Genius
 # ============================================
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -67,7 +67,7 @@ def check_db_connection():
     """
     try:
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         return True
     except Exception as e:

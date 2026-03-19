@@ -42,4 +42,18 @@ class ViewTransformer():
                     position_trasnformed = self.transform_point(position)
                     if position_trasnformed is not None:
                         position_trasnformed = position_trasnformed.squeeze().tolist()
+                    else:
+                        # Pour le ballon, si hors terrain, utiliser une estimation
+                        if object == 'ball':
+                            # Essayer de transformer quand même si proche
+                            position_trasnformed = self._estimate_outside_position(position)
                     tracks[object][frame_num][track_id]['position_transformed'] = position_trasnformed
+
+    def _estimate_outside_position(self, point):
+        """Estime la position transformée même si le point est hors du terrain"""
+        try:
+            reshaped_point = point.reshape(-1,1,2).astype(np.float32)
+            tranform_point = cv2.perspectiveTransform(reshaped_point,self.persepctive_trasnformer)
+            return tranform_point.reshape(-1,2).squeeze().tolist()
+        except:
+            return None

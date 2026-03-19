@@ -24,7 +24,9 @@ COPY requirements.minimal.txt requirements.txt
 # Installation Python - TORCH CPU SEULEMENT (pas CUDA !)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y opencv-python 2>/dev/null; \
+    pip install --no-cache-dir opencv-python-headless==4.10.0.84
 
 # Création répertoires
 RUN mkdir -p /app/data/videos /app/models

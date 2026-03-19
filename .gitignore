@@ -65,8 +65,17 @@ backend/data/videos/**/*
 !backend/data/videos/processed/.gitkeep
 !backend/data/videos/stubs/.gitkeep
 
+# Shared volumes (Docker)
+data/
+models/*.pt
+models/*.mp4
+
+# SQLite databases
+*.db
+
 # Environment files
 .env.local
+.env.example
 
 # Logs
 *.log
@@ -74,4 +83,3 @@ backend/data/videos/**/*
 # Temporary files
 *.tmp
 *.temp
-models/*.mp4
