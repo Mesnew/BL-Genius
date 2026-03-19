@@ -267,56 +267,49 @@ export default function PreviewPage() {
                 </div>
 
                 {/* Main - Lecteur vidéo */}
-                <div className="lg:col-span-2 relative z-10">
+                <div className="lg:col-span-2" style={{ position: 'relative', zIndex: 20 }}>
                   {selectedVideo ? (
-                    <div className="bg-black rounded-2xl overflow-hidden border border-white/20">
-                      <div className="aspect-video bg-black flex items-center justify-center">
+                    <div style={{ backgroundColor: '#000', borderRadius: '1rem', overflow: 'hidden' }}>
+                      <div style={{ aspectRatio: '16/9', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <video
                           src={selectedVideo.url}
                           controls
-                          className="w-full h-full"
-                          style={{ objectFit: 'contain' }}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                           autoPlay
                           muted
                           playsInline
-                          preload="auto"
-                          onError={(e) => console.error('Video error:', e)}
-                        >
-                          Votre navigateur ne supporte pas la lecture vidéo.
-                        </video>
+                        />
                       </div>
 
-                      <div className="p-6"
-                      >
-                        <h3 className="text-xl font-bold text-white mb-2">{selectedVideo.name}</h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-400">
+                      <div style={{ padding: '1.5rem' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>{selectedVideo.name}</h3>
+                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#9ca3af' }}>
                           <span>📁 {formatFileSize(selectedVideo.size)}</span>
                           <span>🎬 {selectedVideo.file.type || 'Vidéo'}</span>
                         </div>
 
-                        <div className="mt-4 flex gap-3">
+                        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem' }}>
                           <a
                             href={selectedVideo.url}
                             download={selectedVideo.name}
-                            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
+                            style={{ padding: '0.5rem 1rem', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: 'white', textDecoration: 'none' }}
                           >
                             ⬇️ Télécharger
                           </a>
 
                           <button
                             onClick={() => router.push('/analyze')}
-                            className="px-4 py-2 bg-gradient-to-r from-green-400 to-cyan-400 text-gray-900 font-bold rounded-lg text-sm hover:scale-105 transition-transform"
+                            style={{ padding: '0.5rem 1rem', background: 'linear-gradient(to right, #4ade80, #22d3ee)', borderRadius: '0.5rem', color: '#111', fontWeight: 'bold' }}
                           >
-                            🔬 Analyser cette vidéo
+                            🔬 Analyser
                           </button>
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-12 text-center border border-white/10"
-                    >
-                      <div className="text-6xl mb-4">🎬</div>
-                      <p className="text-gray-400">Sélectionnez une vidéo pour la prévisualiser</p>
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '1rem', padding: '3rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</div>
+                      <p style={{ color: '#9ca3af' }}>Sélectionnez une vidéo pour la prévisualiser</p>
                     </div>
                   )}
                 </div>
