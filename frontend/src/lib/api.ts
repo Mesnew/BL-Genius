@@ -16,6 +16,12 @@ export interface Task {
   output_path: string | null;
   progress: number;
   error?: string;
+  analysis_result?: {
+    total_frames: number;
+    total_players: number;
+    possession_team1: number;
+    possession_team2: number;
+  };
 }
 
 export async function uploadVideo(file: File): Promise<{ task_id: string; status: string }> {
