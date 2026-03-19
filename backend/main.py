@@ -685,16 +685,9 @@ async def run_analysis_sync(task_id: str, user_id: int):
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Utiliser VideoWriter avec le FPS ajusté (pour garder la durée originale)
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(
-            str(output_path),
-            fourcc,
-            output_fps,  # FPS ajusté pour la durée originale
-            (output_video_frames[0].shape[1], output_video_frames[0].shape[0])
-        )
-        for frame in output_video_frames:
-            out.write(frame)
-        out.release()
+        # La fonction save_video gère la conversion H.264 via FFmpeg
+        from utils.video_utils import save_video
+        save_video(output_video_frames, str(output_path), output_fps)
 
         logger.info(f"✅ Video saved: {output_path} at {output_fps} FPS")
 

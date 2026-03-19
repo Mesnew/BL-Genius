@@ -13,9 +13,11 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Seulement les libs ESSENTIELLES (pas de Mesa, pas de GCC)
+# FFmpeg pour encoder en H.264 (compatibilité navigateur)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copie requirements
@@ -34,6 +36,9 @@ RUN mkdir -p /app/data/videos /app/models
 # Téléchargement modèle YOLO
 RUN python -c "from ultralytics import YOLO; YOLO('yolov8m.pt')" 2>/dev/null || \
     curl -L -o /app/models/yolov8m.pt "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8m.pt"
+
+# Copie du code source
+COPY . .
 
 EXPOSE 8000
 

@@ -406,13 +406,9 @@ class FootballTracker:
 
         # Sauvegarder
         print(f"💾 Sauvegarde vers: {output_path}")
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
-        for frame in output_frames:
-            out.write(frame)
-
-        out.release()
+        # Utiliser la fonction save_video qui gère H.264 via FFmpeg
+        from utils.video_utils import save_video
+        save_video(output_frames, output_path, fps)
         print("✅ Terminé!")
 
         return output_path

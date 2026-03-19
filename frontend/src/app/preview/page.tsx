@@ -22,7 +22,9 @@ export default function PreviewPage() {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -31,6 +33,7 @@ export default function PreviewPage() {
   useEffect(() => {
     // Réinitialiser l'état de chargement quand la vidéo change
     setVideoLoaded(false);
+    setVideoError(null);
   }, [selectedVideoId]);
 
   useEffect(() => {
@@ -63,6 +66,22 @@ export default function PreviewPage() {
     }
   };
 
+  const getVideoMimeType = (file: File): string => {
+    if (file.type && file.type.startsWith('video/')) {
+      return file.type;
+    }
+    // Fallback basé sur l'extension
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      'mp4': 'video/mp4',
+      'webm': 'video/webm',
+      'mov': 'video/quicktime',
+      'avi': 'video/x-msvideo',
+      'mkv': 'video/x-matroska',
+    };
+    return mimeTypes[ext || ''] || 'video/mp4';
+  };
+
   const handleFiles = (files: FileList) => {
     const validFormats = ['.mp4', '.avi', '.mov', '.mkv', '.webm'];
 
@@ -70,6 +89,14 @@ export default function PreviewPage() {
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
       if (validFormats.includes(ext)) {
         const videoUrl = URL.createObjectURL(file);
+        const mimeType = getVideoMimeType(file);
+        console.log('Creating video URL:', {
+          name: file.name,
+          type: file.type,
+          mimeType,
+          size: file.size,
+          url: videoUrl
+        });
         const newVideo: VideoFile = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           file,
@@ -277,27 +304,85 @@ export default function PreviewPage() {
                   {selectedVideo ? (
                     <div style={{ backgroundColor: '#1a1a1a', borderRadius: '1rem', overflow: 'hidden', border: '2px solid #444' }}>
                       <div style={{ aspectRatio: '16/9', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', position: 'relative' }}>
-                        {!videoLoaded && (
+                        {!videoLoaded && !videoError && (
                           <div style={{ position: 'absolute', color: '#fff', textAlign: 'center' }}>
                             <div>Chargement de la vidéo...⏳</div>
                             <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.5rem' }}>{selectedVideo.name}</div>
                           </div>
                         )}
+                        {videoError && (
+                          <div style={{ position: 'absolute', color: '#ff6b6b', textAlign: 'center', padding: '1rem' }}>
+                            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚠️</div>
+                            <div>Impossible de lire cette vidéo</div>
+                            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.5rem' }}>
+                              Format: {getVideoMimeType(selectedVideo.file)} ({selectedVideo.name.split('.').pop()?.toUpperCase()})
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '0.25rem', maxWidth: '300px', wordBreak: 'break-word' }}>
+                              {videoError}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setVideoError(null);
+                                setVideoLoaded(false);
+                                // Recréer l'URL blob
+                                const currentVideo = videos.find(v => v.id === selectedVideoId);
+                                if (currentVideo) {
+                                  URL.revokeObjectURL(currentVideo.url);
+                                  const newUrl = URL.createObjectURL(currentVideo.file);
+                                  setVideos(prev => prev.map(v => v.id === selectedVideoId ? { ...v, url: newUrl } : v));
+                                }
+                              }}
+                              style={{
+                                marginTop: '1rem',
+                                padding: '0.5rem 1rem',
+                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.3)',
+                                borderRadius: '0.5rem',
+                                color: '#fff',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              🔄 Réessayer
+                            </button>
+                          </div>
+                        )}
                         <video
-                          key={selectedVideo.id}
                           src={selectedVideo.url}
                           controls
                           style={{ width: '100%', height: '100%', objectFit: 'contain', display: videoLoaded ? 'block' : 'none' }}
-                          autoPlay
                           muted
                           playsInline
-                          onLoadedData={(e) => {
-                            console.log('Video loaded:', e.currentTarget.videoWidth, 'x', e.currentTarget.videoHeight);
+                          preload="auto"
+                          onLoadStart={() => console.log('Video load started')}
+                          onLoadedMetadata={(e) => {
+                            console.log('Video metadata loaded:', e.currentTarget.videoWidth, 'x', e.currentTarget.videoHeight);
                             setVideoLoaded(true);
+                            setVideoError(null);
+                            e.currentTarget.play().catch(err => console.log('Autoplay prevented:', err));
                           }}
                           onError={(e) => {
-                            console.error('Video error:', e);
+                            const video = e.currentTarget;
+                            const error = video.error;
+                            console.error('Video error details:', { code: error?.code, message: error?.message, networkState: video.networkState, readyState: video.readyState, src: video.src?.substring(0, 50) });
+
+                            // Message spécifique pour l'erreur de codec
+                            let errorMsg = 'Erreur de chargement';
+                            if (error?.code === 4) {
+                              if (error.message?.includes('DEMUXER_ERROR_NO_SUPPORTED_STREAMS')) {
+                                errorMsg = 'Codec non supporté par le navigateur. Convertissez en H.264 (AVC)';
+                              } else {
+                                errorMsg = 'Format non supporté';
+                              }
+                            } else if (error?.code === 3) {
+                              errorMsg = 'Décodage impossible (codec non supporté)';
+                            } else if (error?.code === 2) {
+                              errorMsg = 'Erreur réseau';
+                            } else if (error?.code === 1) {
+                              errorMsg = 'Abruptement interrompue';
+                            }
+
                             setVideoLoaded(false);
+                            setVideoError(errorMsg);
                           }}
                         >
                           Votre navigateur ne supporte pas la lecture vidéo.
