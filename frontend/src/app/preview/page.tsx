@@ -120,7 +120,7 @@ export default function PreviewPage() {
 
   return (
     <PageTransition>
-      <div className={`min-h-screen relative transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`min-h-screen relative z-10 transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
         {/* Header */}
         <header className="py-6 px-4 relative z-10">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -267,20 +267,19 @@ export default function PreviewPage() {
                 </div>
 
                 {/* Main - Lecteur vidéo */}
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-2 relative z-10">
                   {selectedVideo ? (
-                    <div className="bg-black/40 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/20"
-                    >
-                      <div className="aspect-video bg-black relative flex items-center justify-center"
-                      >
+                    <div className="bg-black rounded-2xl overflow-hidden border border-white/20">
+                      <div className="aspect-video bg-black flex items-center justify-center">
                         <video
                           src={selectedVideo.url}
                           controls
-                          className="w-full h-full object-contain"
+                          className="w-full h-full"
+                          style={{ objectFit: 'contain' }}
                           autoPlay
                           muted
                           playsInline
-                          preload="metadata"
+                          preload="auto"
                           onError={(e) => console.error('Video error:', e)}
                         >
                           Votre navigateur ne supporte pas la lecture vidéo.
