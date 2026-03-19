@@ -45,7 +45,11 @@ export default function HomePage() {
 
     // Animation de transition avant redirection
     setTimeout(() => {
-      router.push(`/?player=${player}`);
+      if (player === 'messi') {
+        router.push('/analyze');
+      } else {
+        router.push('/preview');
+      }
     }, 1500);
   };
 
@@ -79,7 +83,7 @@ export default function HomePage() {
         <div className="absolute top-6 left-1/2 transform -translate-x-1/2 pointer-events-auto">
           <div className="bg-black/40 backdrop-blur-lg rounded-full px-8 py-4 border border-white/20">
             <h1 className="text-3xl font-black text-white drop-shadow-lg tracking-wider">
-              ⚽ CHOISISSEZ VOTRE JOUEUR
+              ⚽ CHOISISSEZ VOTRE MODE
             </h1>
           </div>
         </div>
@@ -105,22 +109,20 @@ export default function HomePage() {
             }`}
           >
             <div className="bg-black/50 backdrop-blur-lg rounded-2xl px-8 py-5 text-white text-center border border-white/20">
-              <p className="text-lg font-semibold mb-2">
-                🖱️ Cliquez sur un joueur pour sélectionner
+              <p className="text-lg font-semibold mb-3">
+                🖱️ Cliquez sur un joueur pour choisir votre mode
               </p>
-              <div className="flex items-center justify-center gap-6 text-sm opacity-80 mt-3">
-                <span className="flex items-center gap-2">
-                  <span className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">🖱️</span>
-                  Clic pour choisir
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">🔍</span>
-                  Molette pour zoomer
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">🔄</span>
-                  Glisser pour tourner
-                </span>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="bg-blue-500/20 rounded-lg p-3 border border-blue-400/30">
+                  <div className="text-2xl mb-1">🔵🔴</div>
+                  <div className="font-bold">Messi</div>
+                  <div className="text-blue-200">Analyse IA</div>
+                </div>
+                <div className="bg-yellow-500/20 rounded-lg p-3 border border-yellow-400/30">
+                  <div className="text-2xl mb-1">⚪⚫</div>
+                  <div className="font-bold">Ronaldo</div>
+                  <div className="text-yellow-200">Prévisualisation</div>
+                </div>
               </div>
             </div>
           </div>
@@ -136,7 +138,11 @@ export default function HomePage() {
               <h2 className="text-5xl font-black text-white mb-4 drop-shadow-lg">
                 {selectedPlayer === 'messi' ? 'Lionel Messi' : 'Cristiano Ronaldo'}
               </h2>
-              <p className="text-white/80 text-xl mb-6">Redirection vers le dashboard...</p>
+              <p className="text-white/80 text-xl mb-6">
+                {selectedPlayer === 'messi'
+                  ? "Préparation de l'analyse IA..."
+                  : 'Ouverture du lecteur vidéo...'}
+              </p>
               <div className="w-64 h-2 bg-white/30 rounded-full overflow-hidden mx-auto">
                 <div className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 animate-progress" />
               </div>
