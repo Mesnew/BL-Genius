@@ -559,7 +559,8 @@ async def run_analysis_sync(task_id: str, user_id: int):
         # Assignation équipes
         logger.info("🏃 Team assignment...")
         team_assigner = TeamAssigner()
-        team_assigner.assign_team_color(video_frames[0], tracks['players'][0])
+        team_assigner.assign_team_color(video_frames, tracks['players'])
+        team_assigner.classify_all_players(video_frames, tracks['players'])
 
         for frame_num, player_track in enumerate(tracks['players']):
             for player_id, track in player_track.items():
@@ -615,9 +616,17 @@ async def run_analysis_sync(task_id: str, user_id: int):
                 )
 
                 if assigned_player != -1:
-                    tracks['players'][frame_num][assigned_player]['has_ball'] = True
-                    team_ball_control.append(tracks['players'][frame_num][assigned_player]['team'])
-                else:
+                    player_team = tracks['players'][frame_num][assigned_player].get('team', 1)
+                    if player_team != 0:  # Not a referee
+                        tracks['players'][frame_num][assigned_player]['has_ball'] = True
+                        team_ball_control.append(player_team)
+                    else:
+                        # Referee has ball — keep last team's possession
+                        if team_ball_control:
+                            team_ball_control.append(team_ball_control[-1])
+                        else:
+                            team_ball_control.append(1)
+                elif assigned_player == -1:
                     if team_ball_control:
                         team_ball_control.append(team_ball_control[-1])
                     else:
@@ -662,7 +671,7 @@ async def run_analysis_sync(task_id: str, user_id: int):
 
         # Génération vidéo annotée avec passes et classement des vitesses
         logger.info("🎨 Generating annotated video...")
-        output_video_frames = tracker.draw_annotations(video_frames, tracks, team_ball_control, player_max_speeds)
+        output_video_frames = tracker.draw_annotations(video_frames, tracks, team_ball_control, player_max_speeds, team_assigner.team_colors)
         output_video_frames = camera_estimator.draw_camera_movement(output_video_frames, camera_movements)
         output_video_frames = speed_estimator.draw_speed_and_distance(output_video_frames, tracks)
 
@@ -751,7 +760,7 @@ async def run_analysis_sync(task_id: str, user_id: int):
                 'avg_distance_m': float(round(convert_to_native(pass_stats['avg_distance']), 1)),
                 'avg_speed_kmh': float(round(convert_to_native(pass_stats['avg_speed']), 1)),
                 'by_team': passes_by_team_clean,
-                'events': passes_data[:50]  # Limiter à 50 passes pour la taille JSON
+                'events': convert_to_native(passes_data[:50])  # Limiter à 50 passes pour la taille JSON
             },
             'processing_time': 'completed'
         }

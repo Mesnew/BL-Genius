@@ -243,7 +243,7 @@ class Tracker:
 
         return frame
 
-    def draw_team_ball_control(self, frame, frame_num, team_ball_control):
+    def draw_team_ball_control(self, frame, frame_num, team_ball_control, team_colors=None):
         # Affichage avec noms d'équipe basés sur les couleurs
         team_ball_control_till_frame = team_ball_control[:frame_num+1]
 
@@ -261,29 +261,24 @@ class Tracker:
         team_1_pct = team_1_num_frames / total * 100
         team_2_pct = team_2_num_frames / total * 100
 
+        color_1 = team_colors.get(1, (0, 0, 255)) if team_colors else (0, 0, 255)
+        color_2 = team_colors.get(2, (255, 0, 0)) if team_colors else (255, 0, 0)
+
         # Fond semi-transparent pour la lisibilité
         overlay = frame.copy()
         cv2.rectangle(overlay, (1350, 850), (1920, 980), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
-        # Team Rouge (Team A)
-        cv2.putText(frame, f"Team Rouge (A): {team_1_pct:.1f}%", (1380, 900),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+        cv2.putText(frame, f"Team A: {team_1_pct:.1f}%", (1380, 900),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, color_1, 2)
 
-        # Team Bleue (Team B)
-        cv2.putText(frame, f"Team Bleue (B): {team_2_pct:.1f}%", (1380, 950),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+        cv2.putText(frame, f"Team B: {team_2_pct:.1f}%", (1380, 950),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, color_2, 2)
 
         return frame
 
-    def draw_annotations(self,video_frames, tracks,team_ball_control, player_speeds=None):
+    def draw_annotations(self,video_frames, tracks,team_ball_control, player_speeds=None, team_colors=None):
         output_video_frames= []
-
-        # Couleurs fixes pour les équipes (Team A = Rouge, Team B = Bleu)
-        TEAM_COLORS = {
-            1: (0, 0, 255),    # Rouge en BGR
-            2: (255, 0, 0),    # Bleu en BGR
-        }
 
         # Mapper les track_id à des numéros de maillot 1-26
         player_number_map = {}
@@ -303,32 +298,32 @@ class Tracker:
             ball_dict = tracks["ball"][frame_num]
             referee_dict = tracks["referees"][frame_num]
 
-            # Draw Players avec couleurs d'équipe fixes et numéros 1-26
+            # Draw Players avec couleurs d'équipe détectées
             for track_id, player in player_dict.items():
                 team = player.get("team", 1)
-                # Utiliser la couleur assignée dans main.py, sinon fallback sur TEAM_COLORS
-                color = player.get("team_color", TEAM_COLORS.get(team, (0, 255, 0)))
-                jersey_number = player_number_map.get(track_id, track_id)
-                frame = self.draw_ellipse(frame, player["bbox"], color, jersey_number)
+                if team == 0:
+                    # Referee: yellow ellipse, no jersey number
+                    frame = self.draw_ellipse(frame, player["bbox"], (0, 255, 255))
+                else:
+                    color = player.get("team_color", (0, 255, 0))
+                    jersey_number = player_number_map.get(track_id, track_id)
+                    frame = self.draw_ellipse(frame, player["bbox"], color, jersey_number)
 
-                if player.get('has_ball',False):
-                    frame = self.draw_traingle(frame, player["bbox"], (0, 0, 255))
+                    if player.get('has_ball', False):
+                        frame = self.draw_traingle(frame, player["bbox"], (0, 0, 255))
 
             # Draw Referee (jaune)
             for _, referee in referee_dict.items():
                 frame = self.draw_ellipse(frame, referee["bbox"], (0, 255, 255))
 
-            # Draw ball - cercle au lieu de triangle pour plus de visibilité
+            # Draw ball - triangle vert (flèche pointant vers le bas)
             for track_id, ball in ball_dict.items():
                 bbox = ball.get("bbox", [])
                 if len(bbox) == 4 and all(bbox):
-                    # Dessiner un cercle au centre de la balle
-                    x, y = get_center_of_bbox(bbox)
-                    cv2.circle(frame, (int(x), int(y)), 8, (0, 255, 0), -1)  # Cercle plein vert
-                    cv2.circle(frame, (int(x), int(y)), 10, (0, 0, 0), 2)    # Bordure noire
+                    frame = self.draw_traingle(frame, bbox, (0, 255, 0))
 
-            # Draw Team Ball Control avec noms d'équipe basés sur les couleurs
-            frame = self.draw_team_ball_control(frame, frame_num, team_ball_control)
+            # Draw Team Ball Control avec couleurs d'équipe détectées
+            frame = self.draw_team_ball_control(frame, frame_num, team_ball_control, team_colors)
 
             # Draw speed ranking si disponible
             if player_speeds and frame_num == 0:  # Afficher sur la première frame

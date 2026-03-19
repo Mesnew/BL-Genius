@@ -158,7 +158,8 @@ def process_video(self, video_id: str):
         # =====================================================
         logger.info("🏃 Assignation des équipes...")
         team_assigner = TeamAssigner()
-        team_assigner.assign_team_color(video_frames[0], tracks['players'][0])
+        team_assigner.assign_team_color(video_frames, tracks['players'])
+        team_assigner.classify_all_players(video_frames, tracks['players'])
 
         for frame_num, player_track in enumerate(tracks['players']):
             for player_id, track in player_track.items():
@@ -168,7 +169,7 @@ def process_video(self, video_id: str):
                     player_id
                 )
                 tracks['players'][frame_num][player_id]['team'] = team
-                tracks['players'][frame_num][player_id]['team_color'] = team_assigner.team_colors[team]
+                tracks['players'][frame_num][player_id]['team_color'] = team_assigner.get_team_display_color(team)
 
         logger.info("✅ Équipes assignées")
 
@@ -201,9 +202,16 @@ def process_video(self, video_id: str):
             )
 
             if assigned_player != -1:
-                tracks['players'][frame_num][assigned_player]['has_ball'] = True
-                team_ball_control.append(tracks['players'][frame_num][assigned_player]['team'])
-            else:
+                player_team = tracks['players'][frame_num][assigned_player].get('team', 1)
+                if player_team != 0:  # Not a referee
+                    tracks['players'][frame_num][assigned_player]['has_ball'] = True
+                    team_ball_control.append(player_team)
+                else:
+                    if team_ball_control:
+                        team_ball_control.append(team_ball_control[-1])
+                    else:
+                        team_ball_control.append(1)
+            elif assigned_player == -1:
                 if team_ball_control:
                     team_ball_control.append(team_ball_control[-1])
                 else:
@@ -222,7 +230,7 @@ def process_video(self, video_id: str):
         # ÉTAPE 9: Génération de la vidéo annotée
         # =====================================================
         logger.info("🎨 Annotation des frames...")
-        output_video_frames = tracker.draw_annotations(video_frames, tracks, team_ball_control)
+        output_video_frames = tracker.draw_annotations(video_frames, tracks, team_ball_control, team_colors=team_assigner.team_colors)
         output_video_frames = camera_estimator.draw_camera_movement(output_video_frames, camera_movements)
         output_video_frames = speed_estimator.draw_speed_and_distance(output_video_frames, tracks)
 
