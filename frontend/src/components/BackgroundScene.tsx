@@ -161,13 +161,19 @@ function SoftLighting() {
 
 export default function BackgroundScene() {
   return (
-    <div className="fixed inset-0 -z-10">
+    <div
+      className="fixed inset-0 -z-10"
+      style={{
+        background: '#0f172a',
+        pointerEvents: 'none'
+      }}
+    >
       <Canvas
         camera={{ position: [0, 0, 8], fov: 60 }}
         gl={{ antialias: true, alpha: true }}
         dpr={[1, 1.5]}
+        style={{ pointerEvents: 'none' }}
       >
-        <color attach="background" args={['#0f172a']} />
         <SoftLighting />
         <FloatingParticles count={60} />
         <FloatingBalls count={6} />

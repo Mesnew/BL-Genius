@@ -28,11 +28,11 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body
-        className={`${geistSans.variable} ${geistSans.variable} antialiased min-h-screen`}
+        className={`${geistSans.variable} ${geistSans.variable} antialiased min-h-screen relative`}
       >
         <AuthProvider>
           <Template>
-            {children}
+            <div className="relative z-10">{children}</div>
           </Template>
         </AuthProvider>
       </body>
