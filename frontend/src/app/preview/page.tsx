@@ -21,11 +21,17 @@ export default function PreviewPage() {
   const [videos, setVideos] = useState<VideoFile[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    // Réinitialiser l'état de chargement quand la vidéo change
+    setVideoLoaded(false);
+  }, [selectedVideoId]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -269,18 +275,30 @@ export default function PreviewPage() {
                 {/* Main - Lecteur vidéo */}
                 <div className="lg:col-span-2" style={{ position: 'relative', zIndex: 20 }}>
                   {selectedVideo ? (
-                    <div style={{ backgroundColor: '#000', borderRadius: '1rem', overflow: 'hidden', border: '2px solid #333' }}>
-                      <div style={{ aspectRatio: '16/9', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
+                    <div style={{ backgroundColor: '#1a1a1a', borderRadius: '1rem', overflow: 'hidden', border: '2px solid #444' }}>
+                      <div style={{ aspectRatio: '16/9', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', position: 'relative' }}>
+                        {!videoLoaded && (
+                          <div style={{ position: 'absolute', color: '#fff', textAlign: 'center' }}>
+                            <div>Chargement de la vidéo...⏳</div>
+                            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.5rem' }}>{selectedVideo.name}</div>
+                          </div>
+                        )}
                         <video
                           key={selectedVideo.id}
                           src={selectedVideo.url}
                           controls
-                          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain', display: videoLoaded ? 'block' : 'none' }}
                           autoPlay
                           muted
                           playsInline
-                          onLoadedData={(e) => console.log('Video loaded:', e.currentTarget.videoWidth, 'x', e.currentTarget.videoHeight)}
-                          onError={(e) => console.error('Video error:', e)}
+                          onLoadedData={(e) => {
+                            console.log('Video loaded:', e.currentTarget.videoWidth, 'x', e.currentTarget.videoHeight);
+                            setVideoLoaded(true);
+                          }}
+                          onError={(e) => {
+                            console.error('Video error:', e);
+                            setVideoLoaded(false);
+                          }}
                         >
                           Votre navigateur ne supporte pas la lecture vidéo.
                         </video>
