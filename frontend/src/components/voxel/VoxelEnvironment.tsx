@@ -41,18 +41,18 @@ function StadiumStands() {
     <group>
       {/* Escaliers de secours entre les sections */}
       {Array.from({ length: 6 }).map((_, i) => (
-        <>
+        <group key={`stairs-${i}`}>
           {/* Escalier gauche */}
-          <mesh key={`stairs-left-${i}`} position={[-32, -0.8 + i * 0.35, -15 + i * 6]} receiveShadow>
+          <mesh position={[-32, -0.8 + i * 0.35, -15 + i * 6]} receiveShadow>
             <boxGeometry args={[1.5, 0.1, 4]} />
             <meshStandardMaterial color="#718096" />
           </mesh>
           {/* Escalier droit */}
-          <mesh key={`stairs-right-${i}`} position={[32, -0.8 + i * 0.35, -15 + i * 6]} receiveShadow>
+          <mesh position={[32, -0.8 + i * 0.35, -15 + i * 6]} receiveShadow>
             <boxGeometry args={[1.5, 0.1, 4]} />
             <meshStandardMaterial color="#718096" />
           </mesh>
-        </>
+        </group>
       ))}
 
       {/* Gradins principaux - Côté gauche avec plus de détails */}

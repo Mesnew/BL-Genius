@@ -271,14 +271,15 @@ export default function PreviewPage() {
                   {selectedVideo ? (
                     <div className="bg-black/40 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/20"
                     >
-                      <div className="aspect-video bg-black"
+                      <div className="aspect-video bg-black relative"
                       >
                         <video
                           key={selectedVideo.id}
                           src={selectedVideo.url}
                           controls
-                          className="w-full h-full"
+                          className="w-full h-full object-contain"
                           autoPlay
+                          playsInline
                         >
                           Votre navigateur ne supporte pas la lecture vidéo.
                         </video>
