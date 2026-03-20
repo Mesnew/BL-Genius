@@ -1,5 +1,5 @@
-// Utilise le proxy Next.js en dev, ou l'URL directe en production
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+// Utilise le proxy Next.js / Nginx - toujours relatif côté client
+const API_URL = typeof window !== 'undefined' ? '/api' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
 // Récupérer le token depuis localStorage (côté client uniquement)
 function getToken(): string | null {
